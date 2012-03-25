@@ -1,4 +1,5 @@
 #!/usr/bin/python
+# Created by Michael Kessler, 2012
 
 import sys
 try:
@@ -49,9 +50,14 @@ class myViewport(QGLWidget):
 		outputFile.write("endsolid %s\n" % objectName)
 		outputFile.close()
 
+	def openFiles(self,filepaths):
+		for filepath in filepaths:
+			self.openFile(filepath)
 	def openFile(self,filepath):
 		offset = 0
-		self.lastColor += 1;
+		self.lastColor += 1
+		if ( self.lastColor > len( colorList )-1 ):
+			self.lastColor = 0
 		infile = open(filepath, 'r')
 		inputModel = model( infile, self.lastColor )
 		inputModel.transform[0] = offset
@@ -99,7 +105,8 @@ class myViewport(QGLWidget):
 
 	def showOpenDialog(self):
 		fileDialog = QtGui.QFileDialog(self)
-		fileDialog.fileSelected.connect(self.openFile)
+		fileDialog.setFileMode(QtGui.QFileDialog.ExistingFiles)
+		fileDialog.filesSelected.connect(self.openFiles)
 		filters = ["Stereo Lithography files (*.stl)"]
 		fileDialog.setNameFilters( filters )
 		fileDialog.exec_()
@@ -292,7 +299,7 @@ class model(QtCore.QObject):
 		for polygon in self.polygons:
 			for vertex in polygon.vertex:
 				glVertex3f( vertex[0], vertex[1], vertex[2] )
-			glNormal3f( polygon.nx, polygon.ny, polygon.nz )
+				glNormal3f( polygon.nx, polygon.ny, polygon.nz )
 		glEnd()
 
 		glEndList()
