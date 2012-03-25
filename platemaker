@@ -2,8 +2,14 @@
 # Created by Michael Kessler, 2012
 
 import sys
-from PyQt4 import QtGui, QtCore
-from PyQt4.QtOpenGL import *
+try:
+    #Done in reverse in case we need PySide
+    from PyQt4.QtOpenGL import *
+    from PyQt4 import QtGui, QtCore
+except ImportError, exc:
+    sys.stderr.write("Failed to import PyQT4/OpenGL. Falling back to PySide.")
+    from PySide import QtGui,QtCore
+    from PySide.QtOpenGL import *
 import argparse
 import struct
 import re
