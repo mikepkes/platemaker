@@ -30,12 +30,24 @@ except Exception, exc:
 from platemaker.utils import (
         TEXTCHARS, IS_BINARY_STRING, COLOR_LIST, parse_args)
 
+def cleanupInputValueDecorator(fn):
+    """Cleans up input value if it is out of bounds
+    or invalid for float"""
+    def fndecorator(self,value):
+        try:
+            value = float(value)
+        except ValueError:
+            value = 0
+        return fn(self, value)
+    return fndecorator
+
 class MyViewport(QGLWidget):
     """Viewport widget"""
     def __init__(self, parent = None):
         QGLWidget.__init__(self, parent)
         self.setMinimumSize( 200, 200 )
         self.models = []
+        self.dockwidgets = []
         self.cameraRotate = [0, 0, 0]
         self.cameraTranslate = [0 ,0, -20]
         self.oldx = 0.0
@@ -43,6 +55,19 @@ class MyViewport(QGLWidget):
         self.x = 1
         self.y = 1
         self.lastColor = 0
+
+    def resetFiles(self):
+        """Clears all files back to a blank slate."""
+        while len(self.dockwidgets):
+            widget = self.dockwidgets.pop()
+            widget.close()
+            #widget.setParent(None)
+            #self.parent().removeDockWidget(widget)
+            del widget
+
+        self.dockwidgets = list()
+        self.models = list()
+        self.updateGL()
 
 
     def exportFile(self, filepath):
@@ -83,27 +108,24 @@ class MyViewport(QGLWidget):
         mcv = QtGui.QDoubleValidator(mcc)
 
         mcx = TransformEdit(mcc)
-        mcx.setText("0.0")
+        mcx.setValue(0.0)
         mcx.setMinimumWidth(60)
-        mcx.setValidator(mcv)
-        mcx.textChanged.connect(inputModel.setX)
-        mcx.textChanged.connect(self.updateGL)
+        mcx.valueChanged.connect(inputModel.setX)
+        mcx.valueChanged.connect(self.updateGL)
         mcl.addWidget(mcx)
 
         mcy = TransformEdit(mcc)
-        mcy.setText("0.0")
+        mcy.setValue(0.0)
         mcy.setMinimumWidth(60)
-        mcy.setValidator(mcv)
-        mcy.textChanged.connect(inputModel.setY)
-        mcy.textChanged.connect(self.updateGL)
+        mcy.valueChanged.connect(inputModel.setY)
+        mcy.valueChanged.connect(self.updateGL)
         mcl.addWidget(mcy)
 
         mcz = TransformEdit(mcc)
-        mcz.setText("0.0")
+        mcz.setValue(0.0)
         mcz.setMinimumWidth(60)
-        mcz.setValidator(mcv)
-        mcz.textChanged.connect(inputModel.setZ)
-        mcz.textChanged.connect(self.updateGL)
+        mcz.valueChanged.connect(inputModel.setZ)
+        mcz.valueChanged.connect(self.updateGL)
         mcl.addWidget(mcz)
 
         mccb = QtGui.QPushButton(mcc)
@@ -114,6 +136,7 @@ class MyViewport(QGLWidget):
         mcc.setLayout( mcl )
         mc.setWidget(mcc)
         self.parent().addDockWidget( QtCore.Qt.RightDockWidgetArea, mc )
+        self.dockwidgets.append(mc)
 
     def showOpenDialog(self):
         """Show the open file dialog"""
@@ -132,6 +155,8 @@ class MyViewport(QGLWidget):
         filters = ["Stereo Lithography files (*.stl)"]
         fileDialog.setNameFilters( filters )
         fileDialog.exec_()
+
+
 
     def setRX(self,value):
         self.cameraTranslate[0] = value / 100.0
@@ -229,13 +254,20 @@ class MyViewport(QGLWidget):
         self.x = w
         self.y = h
 
-class TransformEdit(QtGui.QLineEdit):
-    def __init__(self,parent = None):
-        QtGui.QLineEdit.__init__(self, parent)
+#class TransformEdit(QtGui.QLineEdit):
+    #def __init__(self,parent = None):
+        #QtGui.QLineEdit.__init__(self, parent)
 
-    def wheelEvent(self,event):
-        currentValue = float(self.text())
-        self.setText("{}".format(currentValue + (event.delta() / 10.0)))
+    #def wheelEvent(self,event):
+        #currentValue = float(self.text())
+        #self.setText("{}".format(currentValue + (event.delta() / 10.0)))
+
+class TransformEdit(QtGui.QDoubleSpinBox):
+    def __init__(self, parent = None):
+        QtGui.QDoubleSpinBox.__init__(self, parent)
+        self.setMinimum(-500)
+        self.setMaximum(500)
+        self.setSingleStep(5)
 
 
 class bounding:
@@ -324,12 +356,15 @@ class model(QtCore.QObject):
         glEnd()
         glEndList()
 
+    @cleanupInputValueDecorator
     def setX(self, value):
         self.transform[0] = float(value)
 
+    @cleanupInputValueDecorator
     def setY(self, value):
         self.transform[1] = float(value)
 
+    @cleanupInputValueDecorator
     def setZ(self, value):
         self.transform[2] = float(value)
 
@@ -378,6 +413,7 @@ class model(QtCore.QObject):
         self.boundingbox = bb
 
     def parseAscii(self):
+        """Parses an Ascii stl file (this is SIMPLE!)"""
         # Reset the starting location to the beginning.
         current = None
         self.file.seek(0)
@@ -407,6 +443,7 @@ class model(QtCore.QObject):
                         float(result.group(3)) )
 
     def parseBinary(self):
+        """Parses an Ascii stl file (shorter, but less SIMPLE!)"""
         # Make sure we start after the header.
         self.file.seek(80)
 
@@ -440,10 +477,17 @@ def main():
     openAction.setShortcut( 'Ctrl+o' )
     openAction.triggered.connect(myViewport.showOpenDialog)
     fileMenu.addAction(openAction)
+
     exportAction = QtGui.QAction('Export...', mainWindow)
     exportAction.setShortcut( 'Ctrl+e' )
     exportAction.triggered.connect(myViewport.showExportDialog)
     fileMenu.addAction(exportAction)
+
+    fileMenu.addSeparator()
+    closeAction = QtGui.QAction('Reset', mainWindow)
+    closeAction.setShortcut('Ctrl+r')
+    closeAction.triggered.connect(myViewport.resetFiles)
+    fileMenu.addAction(closeAction)
 
     mainWindow.show()
 
